@@ -95,7 +95,7 @@ in any skill that reads one:
 make test    # unit tests plus an end-to-end test through a real CONNECT tunnel
 make vet
 make build
-bin/release 0.2.0
+bin/release 0.2.0 "one-line release note"
 ```
 
 `internal/proxy/integration_test.go` drives a real tunnel with a real CA and is
@@ -104,7 +104,9 @@ the test that catches interception regressions — run it after touching `proxy`
 including the false positive the rule must *not* fire on.
 
 `version` in `main.go` is a `var` so release builds can stamp the tag via
-`-ldflags`; `bin/release` keeps the source default in step.
+`-ldflags`; `bin/release` keeps the source default in step. The optional release
+note rides in the annotated tag's message, which the workflow reads back out and
+puts above the generated changelog.
 
 Commits: single line, imperative, no emoji. Document *why* in the message when a
 filter or redaction rule changes — the history is the record of where those

@@ -7,9 +7,11 @@ cd "$(dirname "$0")/.."
 
 die() { echo "error: $*" >&2; exit 1; }
 
-[ $# -eq 1 ] || die "usage: bin/release <version>   (e.g. bin/release 0.2.0)"
+[ $# -ge 1 ] && [ $# -le 2 ] \
+  || die 'usage: bin/release <version> [note]   (e.g. bin/release 0.2.0 "Fix cookie redaction")'
 
 version="${1#v}"
+note="${2-}"
 tag="v$version"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
   || die "'$1' is not a semver version"
@@ -37,11 +39,14 @@ fi
 
 echo
 git --no-pager diff --stat main.go
+if [ -n "$note" ]; then
+  echo "note: $note"
+fi
 read -r -p "commit, tag $tag and push to origin? [y/N] " reply
 [ "$reply" = y ] || [ "$reply" = Y ] || { git checkout main.go; die "aborted"; }
 
 git commit -q -m "Release $tag" main.go
-git tag -a "$tag" -m "$tag"
+git tag -a "$tag" -m "${note:-$tag}"
 git push -q origin main "$tag"
 
 echo "pushed $tag -- build running at https://github.com/M1ke/agent-proxy/actions"

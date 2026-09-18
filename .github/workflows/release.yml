@@ -56,6 +56,20 @@ jobs:
           set -euo pipefail
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
-          else
-            gh release create "$TAG" dist/* --title "$TAG" --generate-notes --verify-tag
+            exit 0
           fi
+
+          # An annotated tag's message is the release headline; bin/release puts
+          # the note there. A tag with no message of its own just repeats itself.
+          note="$(git tag -l --format='%(contents:subject)' "$TAG")"
+          if [ "$note" = "$TAG" ]; then
+            note=""
+          fi
+
+          {
+            if [ -n "$note" ]; then printf '%s\n\n' "$note"; fi
+            gh api -X POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$TAG" -q .body
+          } > notes.md
+
+          gh release create "$TAG" dist/* --title "$TAG" --notes-file notes.md --verify-tag

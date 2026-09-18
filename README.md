@@ -206,11 +206,12 @@ bugs live.
 ### Releasing
 
 ```
-bin/release 0.2.0
+bin/release 0.2.0 "Fix cookie redaction on multiple set-cookie headers"
 ```
 
-That bumps the version in `main.go`, commits, tags `v0.2.0` and pushes. The tag
-triggers the GitHub Actions workflow, which runs the tests, cross-compiles the
-four targets and attaches them to the release with checksums. It refuses to run
-on a dirty tree, off `main`, out of sync with `origin/main`, or if the tag is
-already taken.
+That bumps the version in `main.go`, commits, tags `v0.2.0` and pushes. The note
+is optional; it becomes the tag's message and then the first line of the release
+body, above the generated changelog. The tag triggers the GitHub Actions
+workflow, which runs the tests, cross-compiles the four targets and attaches
+them to the release with checksums. It refuses to run on a dirty tree, off
+`main`, out of sync with `origin/main`, or if the tag is already taken.
