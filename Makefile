@@ -24,6 +24,6 @@ dist: clean
 	@mkdir -p dist
 	@for target in darwin/arm64 darwin/amd64 linux/arm64 linux/amd64; do \
 	  os=$${target%/*}; arch=$${target#*/}; \
-	  GOOS=$$os GOARCH=$$arch go build -o dist/$(BIN)-$$os-$$arch . || exit 1; \
+	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "-s -w" -o dist/$(BIN)-$$os-$$arch . || exit 1; \
 	done
 	@ls -1 dist

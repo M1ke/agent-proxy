@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Cut a release: bump the version in main.go, tag it and push.
+# The v* tag push is what triggers .github/workflows/release.yml.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+die() { echo "error: $*" >&2; exit 1; }
+
+[ $# -eq 1 ] || die "usage: bin/release <version>   (e.g. bin/release 0.2.0)"
+
+version="${1#v}"
+tag="v$version"
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
+  || die "'$1' is not a semver version"
+
+current="$(git symbolic-ref --short HEAD)"
+[ "$current" = main ] || die "on branch '$current', releases are cut from main"
+[ -z "$(git status --porcelain)" ] || die "working tree has uncommitted changes"
+
+git fetch --tags origin main
+if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+  die "tag $tag already exists"
+fi
+[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] \
+  || die "local main and origin/main have diverged -- pull or push first"
+
+go vet ./...
+go test ./... -count=1
+
+# Keep the compiled-in fallback in step with the tag. Release builds override it
+# with -ldflags, but `make build` and `go install` only ever see this value.
+perl -pi -e "s/^var version = \".*\"$/var version = \"$version\"/" main.go
+if git diff --quiet main.go; then
+  die "main.go version is already $version"
+fi
+
+echo
+git --no-pager diff --stat main.go
+read -r -p "commit, tag $tag and push to origin? [y/N] " reply
+[ "$reply" = y ] || [ "$reply" = Y ] || { git checkout main.go; die "aborted"; }
+
+git commit -q -m "Release $tag" main.go
+git tag -a "$tag" -m "$tag"
+git push -q origin main "$tag"
+
+echo "pushed $tag -- build running at https://github.com/M1ke/agent-proxy/actions"

@@ -11,6 +11,17 @@ make build
 ./agent-proxy record --name checkout-flow
 ```
 
+Or grab a prebuilt binary for macOS or Linux (arm64 and amd64) from the
+[latest release](https://github.com/M1ke/agent-proxy/releases/latest):
+
+```
+tar -xzf agent-proxy-<version>-darwin-arm64.tar.gz
+./agent-proxy record --name checkout-flow
+```
+
+On macOS the binary is unsigned, so the first run needs
+`xattr -d com.apple.quarantine agent-proxy`.
+
 It prints the listen address, the CA certificate path and the Firefox setup
 steps, then a line per recorded exchange:
 
@@ -186,3 +197,15 @@ make test    # unit tests plus an end-to-end test through a real CONNECT tunnel
 make vet
 make dist    # darwin and linux, arm64 and amd64
 ```
+
+## Releases
+
+```
+bin/release 0.2.0
+```
+
+That bumps the version in `main.go`, commits, tags `v0.2.0` and pushes. The tag
+triggers the GitHub Actions workflow, which runs the tests, cross-compiles the
+four targets and attaches them to the release with checksums. It refuses to run
+on a dirty tree, off `main`, out of sync with `origin/main`, or if the tag is
+already taken.
