@@ -25,7 +25,7 @@ import (
 )
 
 // version is overridden at build time: -ldflags "-X main.version=..."
-var version = "0.1.0"
+var version = "0.2.0"
 
 // controlHost is intercepted by the proxy and never resolved or forwarded.
 const controlHost = "proxy.note"
