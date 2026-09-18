@@ -128,3 +128,33 @@ func TestKeepHostBeatsDropPath(t *testing.T) {
 		t.Errorf("keep_hosts should override drop_paths, got %q", got)
 	}
 }
+
+// Regression: a real Firefox session put ~13% junk in a transcript because the
+// blocklist had mozilla.com and mozilla.net but not mozilla.org.
+func TestBrowserServiceNoiseFromRealSession(t *testing.T) {
+	f := New(Builtin(), false)
+	noise := []struct{ host, path string }{
+		{"incoming.telemetry.mozilla.org", "/submit/firefox-desktop/messaging-system/1/abc"},
+		{"ads.mozilla.org", "/"},
+		{"archive.mozilla.org", "/"},
+		{"mozilla-ohttp.fastly-edge.com", "/"},
+		{"prod-games-particle.merino.prod.webservices.mozgcp.net", "/generated/daily-puzzle.v1.json"},
+		{"www.google.com", "/complete/search"},
+	}
+	for _, c := range noise {
+		got := f.CheckRequest(req(t, "POST", "https://"+c.host+c.path, "empty"), c.host)
+		if got == "" {
+			t.Errorf("%s%s should be filtered out", c.host, c.path)
+		}
+	}
+	// Google itself must stay recordable; only the autocomplete path goes.
+	for _, c := range []struct{ host, path string }{
+		{"www.google.com", "/search"},
+		{"mail.google.com", "/mail/u/0"},
+		{"accounts.google.com", "/signin"},
+	} {
+		if got := f.CheckRequest(req(t, "GET", "https://"+c.host+c.path, "document"), c.host); got != "" {
+			t.Errorf("%s%s should be kept, got %q", c.host, c.path, got)
+		}
+	}
+}

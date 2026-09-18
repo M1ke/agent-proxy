@@ -46,8 +46,11 @@ func Builtin() Rules {
 			"fonts.googleapis.com", "fonts.gstatic.com", "cdnjs.cloudflare.com",
 			"unpkg.com", "cdn.jsdelivr.net", "ajax.googleapis.com",
 			"stackpath.bootstrapcdn.com", "use.fontawesome.com",
-			// browser services
-			"mozilla.com", "mozilla.net", "firefox.com", "detectportal.firefox.com",
+			// browser services -- Firefox is the documented browser for this
+			// tool, and it chatters at Mozilla constantly throughout a session
+			"mozilla.com", "mozilla.net", "mozilla.org", "firefox.com",
+			"detectportal.firefox.com", "mozgcp.net",
+			"mozilla-ohttp.fastly-edge.com",
 			"gvt1.com", "gvt2.com", "safebrowsing.googleapis.com",
 		},
 		// First-party telemetry cannot be caught by host, because it is served
@@ -62,6 +65,9 @@ func Builtin() Rules {
 			// self-hosted analytics with conventional mount points
 			"/matomo.php", "/piwik.php", "/g/collect", "/j/collect",
 			"/ingest/e", "/ingest/decide", "/ingest/s",
+			// URL-bar autocomplete; google.com as a whole cannot be dropped
+			// because real apps are recorded there
+			"/complete/search",
 			// dev-server tooling, noisy when recording against a local app
 			"/_next/webpack-hmr", "/__nextjs_original-stack-frame",
 			"/__nextjs_launch-editor", "/@vite", "/@react-refresh",
