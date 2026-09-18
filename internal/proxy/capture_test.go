@@ -188,3 +188,32 @@ func TestClipMarksTruncation(t *testing.T) {
 		t.Errorf("text body should be clipped, got %d chars", len(b.Text))
 	}
 }
+
+// Regression: dropping Prefer made a PostgREST insert look like it returned
+// nothing, because `Prefer: return=representation` never showed up in the
+// transcript. Headers that change what the response *contains* must survive.
+func TestResponseShapingHeadersAreKept(t *testing.T) {
+	h := http.Header{}
+	h.Set("Prefer", "return=representation")
+	h.Set("Range", "0-24")
+	h.Set("If-Match", "\"abc\"")
+	h.Set("If-None-Match", "\"abc\"")
+	h.Set("Cache-Control", "no-cache")
+
+	var found []string
+	out := captureHeaders(h, reqHeaderKeep, redact.New(nil, nil), "req.header", &found)
+
+	for _, name := range []string{"prefer", "range", "if-match"} {
+		if _, ok := out[name]; !ok {
+			t.Errorf("%s changes the response and should be recorded", name)
+		}
+	}
+	for _, name := range []string{"if-none-match", "cache-control"} {
+		if _, ok := out[name]; ok {
+			t.Errorf("%s is cache noise and should be dropped", name)
+		}
+	}
+	if out["prefer"] != "return=representation" {
+		t.Errorf("prefer = %v", out["prefer"])
+	}
+}

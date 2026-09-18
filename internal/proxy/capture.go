@@ -30,6 +30,13 @@ var reqHeaderKeep = map[string]bool{
 	// Auth headers that are neither Authorization nor x-prefixed. Their
 	// values get redacted, but an automation still has to know they exist.
 	"apikey": true, "api-key": true, "auth-token": true, "token": true,
+	// Headers that change what the response contains rather than merely how
+	// it is framed. Dropping Prefer cost a real debugging cycle: PostgREST
+	// returns an empty 201 without `Prefer: return=representation`, and the
+	// transcript gave no hint the header was ever sent.
+	// if-none-match is deliberately absent: it is cache revalidation noise,
+	// whereas if-match carries optimistic-concurrency intent on a write.
+	"prefer": true, "range": true, "if-match": true,
 }
 
 var respHeaderKeep = map[string]bool{
