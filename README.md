@@ -35,55 +35,39 @@ steps, then a line per recorded exchange:
 ## What gets recorded
 
 The point is a transcript short enough to read, so most traffic is discarded:
+CORS preflights, subresources the browser fetched to render a page, static
+assets, analytics, error reporting, ads, support widgets, public CDNs, and
+first-party telemetry at well-known paths.
 
-- `OPTIONS` preflights, which are browser CORS discovery rather than part of the flow
-- subresources the browser fetched to render a page (via `Sec-Fetch-Dest`)
-- static assets by extension and by response content type
-- analytics, error reporting, ads, support widgets and public CDNs
-- first-party telemetry at unambiguous paths (`/_vercel/insights`, `/cdn-cgi/rum`,
-  `/matomo.php`, dev-server HMR endpoints), which the host list cannot catch
-  because it is served from the site's own domain
-
-Custom first-party telemetry — an app's own `/api/track`, say — is deliberately
-*not* guessed at, because any rule general enough to catch it would eventually
-eat a real endpoint. It stays in the recording; annotate it as noise and the
-agent reading the transcript will skip it, or add the path to `drop_paths`.
+An app's own custom telemetry — a `/api/track`, say — is deliberately not
+guessed at, because any rule general enough to catch it would eventually eat a
+real endpoint. It stays in the recording; annotate it as noise, or add the path
+to `drop_paths`.
 
 Of what remains, only headers that affect auth, routing or content negotiation
 are kept — cookies, `authorization`, `apikey`, `content-type`, `referer`,
-`origin` and `x-*` headers, which is where API keys, tenant ids and CSRF tokens
-live. Everything else (`user-agent`, `sec-ch-*`, caching headers) is dropped.
-
-Query strings and JSON, form and multipart bodies are parsed and kept. HTML
-responses keep only their `<title>`, as a landmark. Uploaded file contents are
-reduced to name, type and size.
+`origin` and `x-*` headers. Query strings and JSON, form and multipart bodies
+are parsed and kept. HTML responses keep only their `<title>`, as a landmark.
+Uploaded file contents are reduced to name, type and size.
 
 ## Redaction
 
-The line is drawn between **per-user credentials**, which are removed, and
-**app-level identifiers**, which are kept. A publishable API key is static,
-shipped to every browser, and an automation cannot replay the flow without it;
-a password or a session token identifies a person and is stale by replay time
-anyway.
+Per-user credentials are removed; app-level identifiers are kept, because an
+automation cannot replay the flow without them.
 
-Removed:
+Removed: values under secret-looking keys in JSON, form and query data
+(`password`, `access_token`, `refresh_token`, `client_secret`, `otp`, card
+fields), cookie values (names and attributes survive: `sid=<REDACTED:34>;
+theme=dark`), `authorization` values keeping the scheme (`Bearer
+<REDACTED:212>`), and tokens embedded in URL-ish strings.
 
-- values under secret-looking keys in JSON, form and query data — `password`,
-  `access_token`, `refresh_token`, `client_secret`, `otp`, card fields
-- cookie values (names and attributes survive: `sid=<REDACTED:34>; theme=dark`)
-- `authorization` values, keeping the scheme: `Bearer <REDACTED:212>`
-- tokens embedded in URL-ish strings, wherever they appear
+Kept, deliberately: `apikey` / `api_key` / `X-Api-Key`, `client_id`,
+`anon_key`, `publishable_key` and `grant_type`.
 
-Kept, deliberately: `apikey` / `api_key` / `X-Api-Key` headers and params,
-`client_id`, `anon_key`, `publishable_key`, and `grant_type` — which names the
-auth flow without being a credential.
-
-Short terms match whole name segments rather than substrings, so `pan` (card
-number) does not fire on `p_company_id`, and `auth` does not fire on `author`.
-
-Each removal is listed in that record's `redacted` array. That array is the
-point: it tells an agent exactly which values a generated automation must take
-from the environment rather than hardcode.
+Each removal is listed in that record's `redacted` array — which tells an agent
+exactly which values a generated automation must take from the environment
+rather than hardcode. If a rule fires on something it shouldn't, `allow_keys`
+exempts it.
 
 ## Annotating
 
@@ -121,10 +105,9 @@ being one of `session_start`, `request`, `note`, `websocket`, `session_end`.
  "redacted":["req.body.password","resp.header.set-cookie.sid"]}
 ```
 
-Timing is recorded three ways because replay needs all three: `t` is the wall
-clock, `offset_ms` the position in the session, and `gap_ms` the time since the
-previous record — the gap is what tells an automation how long a step took to
-become available.
+Each record carries three timings: `t` (wall clock), `offset_ms` (position in
+the session) and `gap_ms` (time since the previous record), which is the one
+that shows how long a step took to become available.
 
 ## Flags
 
@@ -169,10 +152,8 @@ disappears silently.
 
 ## TLS
 
-On first run the binary generates an ECDSA CA into `~/.agent-proxy/`. Leaf
-certificates are minted per host on demand. The CA advertises `http/1.1` only,
-so browsers downgrade from HTTP/2 and the intercepting side stays a plain
-HTTP/1.1 server.
+On first run the binary generates a CA into `~/.agent-proxy/` and mints
+certificates per host as it goes.
 
 Import the CA into a **separate Firefox profile** (`firefox -P`, or
 `about:profiles`). It has to be trusted for interception to work, and it should
