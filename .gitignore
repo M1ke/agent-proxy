@@ -7,3 +7,4 @@
 
 # Belt and braces -- also covered by the global gitignore
 /.claude/settings.local.json
+.DS_Store
