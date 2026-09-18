@@ -146,7 +146,7 @@ func cmdRecord(args []string) error {
 	p := proxy.New(proxy.Options{
 		CA:          authority,
 		Filter:      filter.New(rules, *noFilter),
-		Redactor:    redact.New(rules.RedactKeys),
+		Redactor:    redact.New(rules.RedactKeys, rules.AllowKeys),
 		Recorder:    rec,
 		Control:     ctrl,
 		ControlHost: controlHost,

@@ -88,7 +88,7 @@ func newHarness(t *testing.T) *harness {
 	p := proxy.New(proxy.Options{
 		CA:          authority,
 		Filter:      filter.New(filter.Builtin(), false),
-		Redactor:    redact.New(nil),
+		Redactor:    redact.New(nil, nil),
 		Recorder:    rec,
 		Control:     http.NotFoundHandler(),
 		ControlHost: "proxy.note",
@@ -183,7 +183,7 @@ func TestRecordsFlowAndFiltersNoise(t *testing.T) {
 	h.do(t, "OPTIONS", "/api/items", "", "", "empty")
 	time.Sleep(15 * time.Millisecond) // make the gap between records measurable
 	h.do(t, "POST", "/login", "application/json", `{"email":"a@b.com","password":"hunter2"}`, "empty")
-	h.do(t, "GET", "/api/items?page=2&api_key=zzz", "", "", "empty")
+	h.do(t, "GET", "/api/items?page=2&api_key=pub123&access_token=sekrit", "", "", "empty")
 
 	entries := h.entries(t)
 
@@ -245,11 +245,14 @@ func TestRecordsFlowAndFiltersNoise(t *testing.T) {
 	if items.Query["page"] != "2" {
 		t.Errorf("query = %#v", items.Query)
 	}
-	if items.Query["api_key"] != redact.Marker {
-		t.Errorf("query api_key was not redacted: %#v", items.Query)
+	if items.Query["api_key"] != "pub123" {
+		t.Errorf("an app-level api_key should stay readable: %#v", items.Query)
 	}
-	if strings.Contains(items.URL, "api_key") {
-		t.Errorf("the recorded URL should not carry the query string verbatim: %q", items.URL)
+	if items.Query["access_token"] != redact.Marker {
+		t.Errorf("access_token is a session credential and must be redacted: %#v", items.Query)
+	}
+	if strings.Contains(items.URL, "sekrit") {
+		t.Errorf("the recorded URL should not carry a credential verbatim: %q", items.URL)
 	}
 
 	dash := find(entries, "/dashboard")

@@ -35,7 +35,7 @@ func TestCaptureHeadersRedacts(t *testing.T) {
 	h.Set("User-Agent", "Firefox")
 
 	var found []string
-	out := captureHeaders(h, reqHeaderKeep, redact.New(nil), "req.header", &found)
+	out := captureHeaders(h, reqHeaderKeep, redact.New(nil, nil), "req.header", &found)
 
 	if _, ok := out["user-agent"]; ok {
 		t.Error("user-agent should not be recorded per-request")
@@ -43,8 +43,8 @@ func TestCaptureHeadersRedacts(t *testing.T) {
 	if out["x-tenant-id"] != "acme" {
 		t.Errorf("non-secret x- header should survive, got %v", out["x-tenant-id"])
 	}
-	if !strings.Contains(out["x-api-key"].(string), "REDACTED") {
-		t.Errorf("x-api-key should be redacted, got %v", out["x-api-key"])
+	if out["x-api-key"] != "topsecretvalue" {
+		t.Errorf("an app-level API key is required to replay the flow and should be kept, got %v", out["x-api-key"])
 	}
 	if out["authorization"] != "Bearer <REDACTED:10>" {
 		t.Errorf("authorization = %v", out["authorization"])
@@ -60,7 +60,7 @@ func TestCaptureHeadersMultipleSetCookie(t *testing.T) {
 	h.Add("Set-Cookie", "csrf=0123456789abcdef; Secure")
 
 	var found []string
-	out := captureHeaders(h, respHeaderKeep, redact.New(nil), "resp.header", &found)
+	out := captureHeaders(h, respHeaderKeep, redact.New(nil, nil), "resp.header", &found)
 
 	values, ok := out["set-cookie"].([]string)
 	if !ok || len(values) != 2 {
@@ -73,7 +73,7 @@ func TestCaptureHeadersMultipleSetCookie(t *testing.T) {
 
 func TestCaptureBodyJSON(t *testing.T) {
 	var found []string
-	b := captureBody([]byte(`{"email":"a@b.com","password":"x"}`), "application/json", false, redact.New(nil), "req.body", &found)
+	b := captureBody([]byte(`{"email":"a@b.com","password":"x"}`), "application/json", false, redact.New(nil, nil), "req.body", &found)
 	if b.Kind != record.BodyJSON {
 		t.Fatalf("kind = %s", b.Kind)
 	}
@@ -87,7 +87,7 @@ func TestCaptureBodyJSON(t *testing.T) {
 
 func TestCaptureBodyInvalidJSONFallsBackToText(t *testing.T) {
 	var found []string
-	b := captureBody([]byte(`not json at all`), "application/json", false, redact.New(nil), "req.body", &found)
+	b := captureBody([]byte(`not json at all`), "application/json", false, redact.New(nil, nil), "req.body", &found)
 	if b.Kind != record.BodyText || b.Text != "not json at all" {
 		t.Errorf("got %#v", b)
 	}
@@ -95,7 +95,7 @@ func TestCaptureBodyInvalidJSONFallsBackToText(t *testing.T) {
 
 func TestCaptureBodyForm(t *testing.T) {
 	var found []string
-	b := captureBody([]byte("user=bob&password=hunter2"), "application/x-www-form-urlencoded", false, redact.New(nil), "req.body", &found)
+	b := captureBody([]byte("user=bob&password=hunter2"), "application/x-www-form-urlencoded", false, redact.New(nil, nil), "req.body", &found)
 	if b.Kind != record.BodyForm {
 		t.Fatalf("kind = %s", b.Kind)
 	}
@@ -115,7 +115,7 @@ func TestCaptureBodyMultipartElidesFileContents(t *testing.T) {
 	mw.Close()
 
 	var found []string
-	b := captureBody(buf.Bytes(), mw.FormDataContentType(), false, redact.New(nil), "req.body", &found)
+	b := captureBody(buf.Bytes(), mw.FormDataContentType(), false, redact.New(nil, nil), "req.body", &found)
 	if b.Kind != record.BodyMultipart {
 		t.Fatalf("kind = %s", b.Kind)
 	}
@@ -138,7 +138,7 @@ func TestCaptureBodyMultipartElidesFileContents(t *testing.T) {
 func TestCaptureBodyHTMLKeepsOnlyTitle(t *testing.T) {
 	html := []byte("<html><head><title>  Your &amp; My Dashboard </title></head><body>" + strings.Repeat("filler ", 500) + "</body></html>")
 	var found []string
-	b := captureBody(html, "text/html; charset=utf-8", false, redact.New(nil), "resp.body", &found)
+	b := captureBody(html, "text/html; charset=utf-8", false, redact.New(nil, nil), "resp.body", &found)
 	if b.Kind != record.BodyHTML {
 		t.Fatalf("kind = %s", b.Kind)
 	}
@@ -155,7 +155,7 @@ func TestCaptureBodyHTMLKeepsOnlyTitle(t *testing.T) {
 
 func TestCaptureBodyBinary(t *testing.T) {
 	var found []string
-	b := captureBody([]byte{0x89, 0x50, 0x4e, 0x47}, "image/png", false, redact.New(nil), "resp.body", &found)
+	b := captureBody([]byte{0x89, 0x50, 0x4e, 0x47}, "image/png", false, redact.New(nil, nil), "resp.body", &found)
 	if b.Kind != record.BodyBinary || b.Bytes != 4 {
 		t.Errorf("got %#v", b)
 	}
@@ -163,7 +163,7 @@ func TestCaptureBodyBinary(t *testing.T) {
 
 func TestCaptureBodyEmpty(t *testing.T) {
 	var found []string
-	if b := captureBody(nil, "application/json", false, redact.New(nil), "req.body", &found); b != nil {
+	if b := captureBody(nil, "application/json", false, redact.New(nil, nil), "req.body", &found); b != nil {
 		t.Errorf("empty body should record nothing, got %#v", b)
 	}
 }
@@ -183,7 +183,7 @@ func TestReadCappedTruncates(t *testing.T) {
 func TestClipMarksTruncation(t *testing.T) {
 	var found []string
 	long := strings.Repeat("y", maxText+50)
-	b := captureBody([]byte(long), "text/plain", false, redact.New(nil), "resp.body", &found)
+	b := captureBody([]byte(long), "text/plain", false, redact.New(nil, nil), "resp.body", &found)
 	if !strings.HasSuffix(b.Text, "...") || len(b.Text) != maxText+3 {
 		t.Errorf("text body should be clipped, got %d chars", len(b.Text))
 	}

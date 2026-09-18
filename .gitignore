@@ -1,3 +1,6 @@
 /agent-proxy
 /dist/
 /recordings/
+
+# Local, app-specific skill built from a recording
+/skills/cubo-booking/

@@ -19,10 +19,14 @@ const Marker = "<REDACTED>"
 // bearer token reads differently from a 6-char one) and the value is not.
 func Sized(n int) string { return fmt.Sprintf("<REDACTED:%d>", n) }
 
+// Per-user credentials. App-level identifiers -- publishable/anon API keys,
+// client ids -- are deliberately absent: they are static, shipped to every
+// browser, and an automation cannot replay the flow without them. Anything
+// that identifies a *session* or a *person* stays on the list.
 var builtinKeys = []string{
 	"password", "passwd", "pwd", "passphrase",
-	"secret", "token", "apikey", "api_key", "api-key",
-	"auth", "credential", "credentials", "bearer",
+	"secret", "token",
+	"auth", "authorization", "credential", "credentials", "bearer",
 	"private_key", "privatekey", "client_secret",
 	"otp", "mfa", "totp", "2fa", "verification_code",
 	"signature", "_csrf", "csrf", "xsrf",
@@ -45,27 +49,95 @@ var sessionCookieNames = []string{
 // Cookie values at least this long are assumed to be opaque credentials.
 const opaqueCookieLen = 16
 
-type Redactor struct{ keys []string }
+type Redactor struct {
+	keys  []string
+	allow map[string]bool
+}
 
-func New(extra []string) *Redactor {
+// New builds a redactor from the built-in terms plus any extra ones. Names in
+// allow are never redacted, which is how a site whose field happens to be
+// called "secret_menu" stays readable.
+func New(extra, allow []string) *Redactor {
 	keys := make([]string, 0, len(builtinKeys)+len(extra))
 	keys = append(keys, builtinKeys...)
 	for _, k := range extra {
 		keys = append(keys, strings.ToLower(strings.TrimSpace(k)))
 	}
-	return &Redactor{keys: keys}
+	allowed := make(map[string]bool, len(allow))
+	for _, a := range allow {
+		allowed[strings.ToLower(strings.TrimSpace(a))] = true
+	}
+	return &Redactor{keys: keys, allow: allowed}
 }
+
+// Short terms are matched against whole name segments rather than as
+// substrings. "pan" inside "company" and "auth" inside "author" are the kind
+// of false positive that silently destroys a transcript's usefulness.
+const substringMinLen = 5
 
 // IsSecretName matches loosely on purpose: `user_password_confirm` and
 // `X-Api-Key` should both hit.
 func (r *Redactor) IsSecretName(name string) bool {
 	n := strings.ToLower(name)
+	if r.allow[n] {
+		return false
+	}
+	var segs []string
 	for _, k := range r.keys {
-		if k != "" && strings.Contains(n, k) {
-			return true
+		if k == "" {
+			continue
+		}
+		if len(k) >= substringMinLen {
+			if strings.Contains(n, k) {
+				return true
+			}
+			continue
+		}
+		if segs == nil {
+			// Segment the original so camelCase humps survive.
+			segs = segments(name)
+		}
+		for _, s := range segs {
+			if s == k {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// segments splits a field name on punctuation and camelCase humps, so
+// `p_company_id`, `apiKey` and `X-Auth-Token` all break into their parts.
+func segments(name string) []string {
+	var out []string
+	var cur strings.Builder
+	var prevLower bool
+	flush := func() {
+		if cur.Len() > 0 {
+			out = append(out, cur.String())
+			cur.Reset()
+		}
+	}
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z':
+			cur.WriteRune(r)
+			prevLower = true
+		case r >= '0' && r <= '9':
+			cur.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			if prevLower {
+				flush()
+			}
+			cur.WriteRune(r - 'A' + 'a')
+			prevLower = false
+		default:
+			flush()
+			prevLower = false
+		}
+	}
+	flush()
+	return out
 }
 
 // JSON walks a decoded JSON value, replacing secret-named leaves and appending

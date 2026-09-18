@@ -14,6 +14,7 @@ type Rules struct {
 	DropPaths      []string `json:"drop_paths"`
 	DropExtensions []string `json:"drop_extensions"`
 	RedactKeys     []string `json:"redact_keys"`
+	AllowKeys      []string `json:"allow_keys"`
 }
 
 // Builtin covers the traffic that is almost never part of a task flow:
@@ -103,5 +104,6 @@ func Load(path string, optional bool) (Rules, error) {
 	base.DropExtensions = append(base.DropExtensions, over.DropExtensions...)
 	base.KeepHosts = append(base.KeepHosts, over.KeepHosts...)
 	base.RedactKeys = append(base.RedactKeys, over.RedactKeys...)
+	base.AllowKeys = append(base.AllowKeys, over.AllowKeys...)
 	return base, nil
 }

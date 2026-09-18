@@ -27,6 +27,9 @@ const maxText = 8 << 10
 var reqHeaderKeep = map[string]bool{
 	"cookie": true, "authorization": true, "proxy-authorization": true,
 	"content-type": true, "accept": true, "referer": true, "origin": true,
+	// Auth headers that are neither Authorization nor x-prefixed. Their
+	// values get redacted, but an automation still has to know they exist.
+	"apikey": true, "api-key": true, "auth-token": true, "token": true,
 }
 
 var respHeaderKeep = map[string]bool{

@@ -39,9 +39,9 @@ eat a real endpoint. It stays in the recording; annotate it as noise and the
 agent reading the transcript will skip it, or add the path to `drop_paths`.
 
 Of what remains, only headers that affect auth, routing or content negotiation
-are kept — cookies, `authorization`, `content-type`, `referer`, `origin` and
-`x-*` headers, which is where API keys, tenant ids and CSRF tokens live.
-Everything else (`user-agent`, `sec-ch-*`, caching headers) is dropped.
+are kept — cookies, `authorization`, `apikey`, `content-type`, `referer`,
+`origin` and `x-*` headers, which is where API keys, tenant ids and CSRF tokens
+live. Everything else (`user-agent`, `sec-ch-*`, caching headers) is dropped.
 
 Query strings and JSON, form and multipart bodies are parsed and kept. HTML
 responses keep only their `<title>`, as a landmark. Uploaded file contents are
@@ -49,12 +49,26 @@ reduced to name, type and size.
 
 ## Redaction
 
-Anything credential-shaped is replaced before it reaches disk:
+The line is drawn between **per-user credentials**, which are removed, and
+**app-level identifiers**, which are kept. A publishable API key is static,
+shipped to every browser, and an automation cannot replay the flow without it;
+a password or a session token identifies a person and is stale by replay time
+anyway.
 
-- values under secret-looking keys in JSON, form and query data
+Removed:
+
+- values under secret-looking keys in JSON, form and query data — `password`,
+  `access_token`, `refresh_token`, `client_secret`, `otp`, card fields
 - cookie values (names and attributes survive: `sid=<REDACTED:34>; theme=dark`)
 - `authorization` values, keeping the scheme: `Bearer <REDACTED:212>`
 - tokens embedded in URL-ish strings, wherever they appear
+
+Kept, deliberately: `apikey` / `api_key` / `X-Api-Key` headers and params,
+`client_id`, `anon_key`, `publishable_key`, and `grant_type` — which names the
+auth flow without being a credential.
+
+Short terms match whole name segments rather than substrings, so `pan` (card
+number) does not fire on `p_company_id`, and `auth` does not fire on `author`.
 
 Each removal is listed in that record's `redacted` array. That array is the
 point: it tells an agent exactly which values a generated automation must take
@@ -127,9 +141,13 @@ overrides every drop rule, including the `OPTIONS` and subresource ones.
   "keep_hosts": ["cdn.example.com"],
   "drop_paths": ["/api/metrics", "/internal/telemetry*"],
   "drop_extensions": [".tiff"],
-  "redact_keys": ["customer_reference"]
+  "redact_keys": ["customer_reference"],
+  "allow_keys": ["secret_menu"]
 }
 ```
+
+`redact_keys` adds terms; `allow_keys` exempts an exact field name whose
+built-in match is a false positive.
 
 A `drop_paths` entry matches the path exactly or as a parent segment, so
 `/api/metrics` covers `/api/metrics/batch` but not `/api/metrics-report`. End it
