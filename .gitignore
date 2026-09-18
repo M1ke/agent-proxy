@@ -4,3 +4,6 @@
 
 # Local, app-specific skill built from a recording
 /skills/cubo-booking/
+
+# Belt and braces -- also covered by the global gitignore
+/.claude/settings.local.json
